@@ -51,6 +51,14 @@ def update_discord_presence(track):
     except Exception as e:
         print(f"Error updating Discord Rich Presence: {e}")
 
+# Function to re-authenticate the user
+def reauthenticate():
+    print("Re-authenticating...")
+    # Follow the instructions in the browser to authenticate
+    # https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html
+    yt = YTMusic.setup(filepath='browser.json')
+    print("Re-authentication successful.")
+
 # Function to estimate the currently playing song
 def estimate_current_song(previous_track, skip_first):
     try:
@@ -104,7 +112,11 @@ def estimate_current_song(previous_track, skip_first):
         return most_recent_track
 
     except Exception as e:
-        print(f"Error fetching history: {e}")
+        if "authentication" in str(e).lower():
+            print("Authentication error detected. Re-authenticating...")
+            reauthenticate()
+        else:
+            print(f"Error fetching history: {e}")
         return None
 
 # Main loop to periodically estimate the current song
@@ -115,23 +127,30 @@ minimum_frequency = 5 * 60  # 5 minutes in seconds
 buffer_time = 5  # 5 seconds buffer
 
 while True:
-    previous_track = estimate_current_song(previous_track, skip_first)
-    skip_first = False  # After the first iteration, stop skipping
+    try:
+        previous_track = estimate_current_song(previous_track, skip_first)
+        skip_first = False  # After the first iteration, stop skipping
 
-    # Dynamically calculate the next sleep time
-    if previous_track:
-        duration_seconds = previous_track.get("duration_seconds", minimum_frequency)
-        elapsed_time = (datetime.now() - previous_track.get("play_time", datetime.now())).total_seconds()
+        # Dynamically calculate the next sleep time
+        if previous_track:
+            duration_seconds = previous_track.get("duration_seconds", minimum_frequency)
+            elapsed_time = (datetime.now() - previous_track.get("play_time", datetime.now())).total_seconds()
 
-        if duration_seconds < minimum_frequency:
-            sleep_time = max(0, duration_seconds - elapsed_time + buffer_time)
+            if duration_seconds < minimum_frequency:
+                sleep_time = max(0, duration_seconds - elapsed_time + buffer_time)
+            else:
+                sleep_time = minimum_frequency
         else:
             sleep_time = minimum_frequency
-    else:
-        sleep_time = minimum_frequency
 
-    print(f"Waiting for {sleep_time} seconds before the next check...")
-    time.sleep(sleep_time)
+        print(f"Waiting for {sleep_time} seconds before the next check...")
+        time.sleep(sleep_time)
+    except Exception as e:
+        if "authentication" in str(e).lower():
+            print("Authentication error detected. Re-authenticating...")
+            reauthenticate()
+        else:
+            print(f"Error in main loop: {e}")
+        time.sleep(buffer_time)  # Wait for a short period before retrying
 
 # TODO: Ensure the script handles authentication errors and prompts the user to re-authenticate if needed
-# TODO: Add error handling for network issues or API rate limits
