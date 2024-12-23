@@ -1,6 +1,6 @@
 # uses: https://github.com/sigma67/ytmusicapi
 #
-# Coded mostly by ChatGPT's coding skills and my chaotic instructions
+# A Python Script to set the Discord Rich Presence to the currently playing song on YouTube Music using the unofficial ytmusicapi.
 #
 # Setup env:
 # python3 -m venv venv
@@ -11,20 +11,45 @@
 
 # run script: python3 main.py
 
-
-
 from ytmusicapi import YTMusic
 import time
 import json
 from datetime import datetime, timedelta
+from pypresence import Presence  # Import the pypresence library for Discord Rich Presence
 
 # Initialize YTMusic with authentication
 yt = YTMusic('browser.json')
+
+# Initialize Discord Rich Presence
+client_id = 'your_discord_client_id'  # Replace with your Discord application's client ID
+RPC = Presence(client_id)
+RPC.connect()
 
 # Function to log the current state to a temporary file
 def log_current_state(state):
     with open("current_state_log.json", "w") as log_file:
         json.dump(state, log_file, indent=4)
+
+# Function to update Discord Rich Presence
+def update_discord_presence(track):
+    try:
+        title = track.get("title", "Unknown Title")
+        artist = track.get("artists", [{"name": "Unknown Artist"}])[0].get("name")
+        duration_seconds = track.get("duration_seconds", 0)
+        start_time = track.get("play_time", datetime.now()).timestamp()
+
+        RPC.update(
+            state=f"by {artist}",
+            details=title,
+            start=start_time,
+            large_image="ytmusic_logo",  # Replace with your image key
+            large_text="YouTube Music",
+            small_image="play_icon",  # Replace with your image key
+            small_text="Playing"
+        )
+        print(f"Updated Discord Rich Presence: {title} by {artist}")
+    except Exception as e:
+        print(f"Error updating Discord Rich Presence: {e}")
 
 # Function to estimate the currently playing song
 def estimate_current_song(previous_track, skip_first):
@@ -73,6 +98,9 @@ def estimate_current_song(previous_track, skip_first):
         # Update the track with an estimated play time
         most_recent_track["play_time"] = play_time
 
+        # Update Discord Rich Presence
+        update_discord_presence(most_recent_track)
+
         return most_recent_track
 
     except Exception as e:
@@ -104,3 +132,6 @@ while True:
 
     print(f"Waiting for {sleep_time} seconds before the next check...")
     time.sleep(sleep_time)
+
+# TODO: Ensure the script handles authentication errors and prompts the user to re-authenticate if needed
+# TODO: Add error handling for network issues or API rate limits
